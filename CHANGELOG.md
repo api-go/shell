@@ -1,5 +1,8 @@
 # CHANGELOG - shell
 
+## v1.5.1 (2026-06-08)
+- **JS 对齐**: 将所有注册到 `jsmod` 的导出方法名统一为 PascalCase（如 `Run`, `RunCommand`），以消除 JS 与 Go 调用体感上的摩擦。
+
 ## [v1.3.2] - 2026-05-30
 - **新增**: 注册到 `jsmod`，提供 `run` 和 `runCommand` 能力，并标记为高危方法（unsafeList）。
 

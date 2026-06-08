@@ -4,7 +4,7 @@ import "apigo.cc/go/jsmod"
 
 func init() {
 	jsmod.Register("shell", map[string]any{
-		"run":        Run,
-		"runCommand": RunCommand,
-	}, "run", "runCommand")
+		"Run":        Run,
+		"RunCommand": RunCommand,
+	}, "Run", "RunCommand")
 }
