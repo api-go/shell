@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -227,4 +228,169 @@ func setupSignalHandling(cmd *exec.Cmd) {
 			}
 		}
 	}()
+}
+
+// Process represents a running command started by Start.
+// It provides methods to manage the subprocess lifecycle and I/O.
+type Process struct {
+	cmd       *exec.Cmd
+	stdin     io.WriteCloser
+	stdoutBuf bytes.Buffer
+	stderrBuf bytes.Buffer
+	mu        sync.Mutex
+	done      chan struct{}
+}
+
+// Start starts a command and returns immediately, unlike Run which waits for completion.
+// The returned Process provides Kill/Read/Write/Check for lifecycle management.
+// If CatchSignal is set in opts, OS signals are automatically forwarded to the child.
+// By default, stdout/stderr are streamed to the parent's terminal in addition to
+// being buffered for Read calls.
+func Start(name string, args []string, opts *Options) (*Process, error) {
+	cmd := exec.Command(name, args...)
+
+	if opts != nil {
+		if opts.Dir != "" {
+			cmd.Dir = opts.Dir
+		}
+		if opts.Verbose {
+			fmt.Println(Style(TextCyan, "Start:", name, strings.Join(args, " ")))
+		}
+		if opts.Env != nil {
+			cmd.Env = append(os.Environ(), opts.Env...)
+		}
+	}
+
+	stdinR, stdinW := io.Pipe()
+	cmd.Stdin = stdinR
+
+	stdoutR, stdoutW := io.Pipe()
+	cmd.Stdout = stdoutW
+
+	stderrR, stderrW := io.Pipe()
+	cmd.Stderr = stderrW
+
+	if runtime.GOOS != "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	}
+
+	if err := cmd.Start(); err != nil {
+		stdinW.Close()
+		stdoutW.Close()
+		stderrW.Close()
+		return nil, err
+	}
+
+	p := &Process{
+		cmd:   cmd,
+		stdin: stdinW,
+		done:  make(chan struct{}),
+	}
+
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := stdoutR.Read(buf)
+			if n > 0 {
+				p.mu.Lock()
+				if p.stdoutBuf.Len() > 512*1024 {
+					p.stdoutBuf.Next(p.stdoutBuf.Len() / 2)
+				}
+				p.stdoutBuf.Write(buf[:n])
+				p.mu.Unlock()
+				if opts != nil && opts.OnStdout != nil {
+					opts.OnStdout(buf[:n])
+				} else {
+					os.Stdout.Write(buf[:n])
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := stderrR.Read(buf)
+			if n > 0 {
+				p.mu.Lock()
+				if p.stderrBuf.Len() > 512*1024 {
+					p.stderrBuf.Next(p.stderrBuf.Len() / 2)
+				}
+				p.stderrBuf.Write(buf[:n])
+				p.mu.Unlock()
+				if opts != nil && opts.OnStderr != nil {
+					opts.OnStderr(buf[:n])
+				} else {
+					os.Stderr.Write(buf[:n])
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	if opts != nil && opts.CatchSignal {
+		setupSignalHandling(cmd)
+	}
+
+	go func() {
+		cmd.Wait()
+		stdinW.Close()
+		stdoutW.Close()
+		stderrW.Close()
+		close(p.done)
+	}()
+
+	return p, nil
+}
+
+// Kill terminates the process group. SIGTERM first for graceful shutdown,
+// then SIGKILL after 200ms. On Windows, uses os.Process.Kill directly.
+func (p *Process) Kill() error {
+	if p.cmd.Process == nil {
+		return nil
+	}
+	if runtime.GOOS == "windows" {
+		return p.cmd.Process.Kill()
+	}
+	pgid, err := syscall.Getpgid(p.cmd.Process.Pid)
+	if err != nil {
+		return p.cmd.Process.Kill()
+	}
+	_ = syscall.Kill(-pgid, syscall.SIGTERM)
+	time.Sleep(200 * time.Millisecond)
+	return syscall.Kill(-pgid, syscall.SIGKILL)
+}
+
+// Read reads buffered stdout data from the process. The buffer retains up to
+// 512KB of recent output; older data is discarded when the limit is exceeded.
+func (p *Process) Read(data []byte) (int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.stdoutBuf.Read(data)
+}
+
+// Write sends data to the process's stdin.
+func (p *Process) Write(data []byte) (int, error) {
+	return p.stdin.Write(data)
+}
+
+// Check returns nil if the process is still running.
+// If the process has exited, it returns an error with exit details.
+func (p *Process) Check() error {
+	select {
+	case <-p.done:
+		if p.cmd.ProcessState != nil {
+			if code := p.cmd.ProcessState.ExitCode(); code != 0 {
+				return fmt.Errorf("process exited with code %d", code)
+			}
+		}
+		return fmt.Errorf("process completed")
+	default:
+		return nil
+	}
 }

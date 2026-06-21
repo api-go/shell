@@ -47,6 +47,18 @@
 - **`RunCommand(command string, opts *Options) (*CommandResult, error)`**: 支持解析 `|` 管道与 `&&` 短路逻辑的复合命令执行。
 - **`Pipeline(commands [][]string, opts *Options) (*CommandResult, error)`**: 执行多命令并行管道，高性能 IO 传输。
 
+### 异步进程管理 (Start)
+
+#### 数据结构
+- **`Process`**: 代表由 `Start` 启动的运行中命令
+  - `Kill() error`: 终止进程组（SIGTERM → 200ms → SIGKILL），Windows 直接 Kill
+  - `Read(data []byte) (int, error)`: 读取缓冲的 stdout 数据（上限 512KB，超出丢弃旧数据）
+  - `Write(data []byte) (int, error)`: 向进程 stdin 写入数据
+  - `Check() error`: 检查进程是否仍在运行，已退出则返回错误
+
+#### 函数接口
+- **`Start(name string, args []string, opts *Options) (*Process, error)`**: 异步启动命令，立即返回 `*Process`。stdout/stderr 默认流式输出到终端，可通过 `opts.OnStdout`/`opts.OnStderr` 自定义回调。
+
 ## 使用示例
 
 ```go
@@ -58,6 +70,20 @@ res, err := shell.Run("grep", []string{"pattern", "file.log"}, &shell.Options{
 
 // 2. 管道与短路逻辑组合
 res, err := shell.RunCommand("cat file.txt | grep 'foo' && echo 'found'", nil)
+
+// 3. 异步启动长期运行的服务
+proc, err := shell.Start("go", []string{"run", "server.go"}, &shell.Options{
+    Dir: "./app",
+    OnStdout: func(data []byte) { log.Print(string(data)) },
+})
+if err != nil { panic(err) }
+defer proc.Kill()
+// 写入 stdin
+proc.Write([]byte("input\n"))
+// 检查运行状态
+if err := proc.Check(); err != nil {
+    fmt.Println("process stopped:", err)
+}
 ```
 
 ## 测试与质量保证

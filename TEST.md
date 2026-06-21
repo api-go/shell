@@ -9,6 +9,8 @@
 - 管道命令执行 (Pipeline)
 - 完整命令字符串支持（包含 '|' 与 '&&' 逻辑）
 - '&&' 短路逻辑验证（失败中断）
+- 异步进程启动与管理 (Start / Process)
+- 进程生命周期控制 (Kill / Read / Write / Check)
 
 ## Benchmark 结果
 - 目前暂未添加复杂基准测试，Shell 模块执行受限于 OS 系统调用开销。

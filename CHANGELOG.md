@@ -1,5 +1,13 @@
 # CHANGELOG - shell
 
+## v1.5.4 (2026-06-21)
+- **新增 `Start` 方法和 `Process` 结构体**:
+  - `Start(name, args, opts)` 异步启动命令，立即返回 `*Process`，不等待命令完成。
+  - `Process` 提供 `Kill`/`Read`/`Write`/`Check` 方法，支持子进程生命周期管理和实时 I/O 交互。
+  - stdout/stderr 默认流式输出到父终端，同时缓冲（上限 512KB）以供 `Read` 读取。
+  - `CatchSignal` 选项支持信号自动转发到子进程组。
+  - `Kill` 优雅终止：先 SIGTERM，200ms 后 SIGKILL；Windows 直接 Kill。
+
 ## v1.5.3 (2026-06-21)
 - **重构与错误堆栈支持**:
   - 重构 `js_export.go`，将 `Run` 和 `RunCommand` 注册为具名函数，并动态使用 `jsmod.MakeError` 包裹错误。
