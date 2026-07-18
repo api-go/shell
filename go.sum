@@ -1,4 +1,4 @@
-apigo.cc/go/cast v1.5.0 h1:UBGJtFQ8eJPMQXs37cUgqd7YQo1zI9opuSDBDmn2/pE=
-apigo.cc/go/cast v1.5.0/go.mod h1:z2GW5p5WCZGEqVVIJUdhl232vRbLf2Qu4EDlEakX/D8=
-apigo.cc/go/jsmod v1.5.0 h1:JgQtJNiJWy1NOP9AzE8NX5VXJkpO/x3GqLsCCSny5Ec=
-apigo.cc/go/jsmod v1.5.0/go.mod h1:bmyeZtOAP/j5am+YRnaiM89smysK24K7ebk0koFtsSw=
+apigo.cc/go/cast v1.5.3 h1:jk6VX0rGFhjKtfPhsaV6IKYpiGmORRk9qPTtuNS53tw=
+apigo.cc/go/cast v1.5.3/go.mod h1:GMjjrYn93tWat1U409G7h1jR3ejfLLI7r0efBo9Sbd4=
+apigo.cc/go/jsmod v1.5.3 h1:S3W317bH0QV2NMeRO1E0v6ySIBOfMWYv/NuQJbvqKWU=
+apigo.cc/go/jsmod v1.5.3/go.mod h1:bmyeZtOAP/j5am+YRnaiM89smysK24K7ebk0koFtsSw=

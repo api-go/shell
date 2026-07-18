@@ -1,5 +1,8 @@
 # CHANGELOG - shell
 
+## v1.5.5 (2026-07-18)
+- **依赖校验修复**: 更新 `go.sum` 为当前可验证的依赖 checksum。
+
 ## v1.5.4 (2026-06-21)
 - **新增 `Start` 方法和 `Process` 结构体**:
   - `Start(name, args, opts)` 异步启动命令，立即返回 `*Process`，不等待命令完成。
