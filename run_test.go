@@ -3,6 +3,7 @@ package shell_test
 import (
 	"bytes"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -126,5 +127,32 @@ func TestRunCommandMixedPipeAndChain(t *testing.T) {
 	output := strings.TrimSpace(string(res.Stdout))
 	if !strings.Contains(output, "hello") || !strings.Contains(output, "world") {
 		t.Errorf("Expected 'hello' and 'world' in output, got: %s", output)
+	}
+}
+
+func TestProcessKillWaitsAndIsConcurrentSafe(t *testing.T) {
+	proc, err := shell.Start("sh", []string{"-c", "while :; do read line || :; done"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 4)
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- proc.Kill()
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("Kill failed: %v", err)
+		}
+	}
+	if err := proc.Check(); err == nil {
+		t.Fatal("process should be reaped before Kill returns")
 	}
 }

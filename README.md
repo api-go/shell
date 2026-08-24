@@ -51,7 +51,7 @@
 
 #### 数据结构
 - **`Process`**: 代表由 `Start` 启动的运行中命令
-  - `Kill() error`: 终止进程组（SIGTERM → 200ms → SIGKILL），Windows 直接 Kill
+  - `Kill() error`: 并发安全地终止进程组；先发送 SIGTERM，超时后发送 SIGKILL，返回前确保子进程已回收
   - `Read(data []byte) (int, error)`: 读取缓冲的 stdout 数据（上限 512KB，超出丢弃旧数据）
   - `Write(data []byte) (int, error)`: 向进程 stdin 写入数据
   - `Check() error`: 检查进程是否仍在运行，已退出则返回错误

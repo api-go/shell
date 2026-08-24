@@ -1,8 +1,10 @@
 package shell
+
 import (
 	"apigo.cc/go/cast"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -119,6 +121,7 @@ func InteractiveRun(name string, args []string) error {
 }
 
 type writerFunc func([]byte)
+
 func (w writerFunc) Write(p []byte) (n int, err error) {
 	w(p)
 	return len(p), nil
@@ -238,6 +241,7 @@ type Process struct {
 	stdoutBuf bytes.Buffer
 	stderrBuf bytes.Buffer
 	mu        sync.Mutex
+	killMu    sync.Mutex
 	done      chan struct{}
 }
 
@@ -261,14 +265,20 @@ func Start(name string, args []string, opts *Options) (*Process, error) {
 		}
 	}
 
-	stdinR, stdinW := io.Pipe()
-	cmd.Stdin = stdinR
-
-	stdoutR, stdoutW := io.Pipe()
-	cmd.Stdout = stdoutW
-
-	stderrR, stderrW := io.Pipe()
-	cmd.Stderr = stderrW
+	stdinW, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	stdoutR, err := cmd.StdoutPipe()
+	if err != nil {
+		stdinW.Close()
+		return nil, err
+	}
+	stderrR, err := cmd.StderrPipe()
+	if err != nil {
+		stdinW.Close()
+		return nil, err
+	}
 
 	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -276,8 +286,6 @@ func Start(name string, args []string, opts *Options) (*Process, error) {
 
 	if err := cmd.Start(); err != nil {
 		stdinW.Close()
-		stdoutW.Close()
-		stderrW.Close()
 		return nil, err
 	}
 
@@ -340,30 +348,72 @@ func Start(name string, args []string, opts *Options) (*Process, error) {
 	go func() {
 		cmd.Wait()
 		stdinW.Close()
-		stdoutW.Close()
-		stderrW.Close()
 		close(p.done)
 	}()
 
 	return p, nil
 }
 
-// Kill terminates the process group. SIGTERM first for graceful shutdown,
-// then SIGKILL after 200ms. On Windows, uses os.Process.Kill directly.
+// Kill terminates the process group and waits until the child is reaped.
+// It allows up to two seconds for graceful shutdown before sending SIGKILL.
 func (p *Process) Kill() error {
+	p.killMu.Lock()
+	defer p.killMu.Unlock()
+
 	if p.cmd.Process == nil {
 		return nil
 	}
+	if p.waitDone(0) {
+		return nil
+	}
 	if runtime.GOOS == "windows" {
-		return p.cmd.Process.Kill()
+		if err := p.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return err
+		}
+		p.waitDone(-1)
+		return nil
 	}
 	pgid, err := syscall.Getpgid(p.cmd.Process.Pid)
 	if err != nil {
-		return p.cmd.Process.Kill()
+		if errors.Is(err, syscall.ESRCH) || p.waitDone(0) {
+			return nil
+		}
+		return err
 	}
-	_ = syscall.Kill(-pgid, syscall.SIGTERM)
-	time.Sleep(200 * time.Millisecond)
-	return syscall.Kill(-pgid, syscall.SIGKILL)
+	if err = syscall.Kill(-pgid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	if p.waitDone(2 * time.Second) {
+		return nil
+	}
+	if err = syscall.Kill(-pgid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	p.waitDone(-1)
+	return nil
+}
+
+func (p *Process) waitDone(timeout time.Duration) bool {
+	if timeout < 0 {
+		<-p.done
+		return true
+	}
+	if timeout == 0 {
+		select {
+		case <-p.done:
+			return true
+		default:
+			return false
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	select {
+	case <-p.done:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // Read reads buffered stdout data from the process. The buffer retains up to
