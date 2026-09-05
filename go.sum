@@ -1,4 +1,8 @@
-apigo.cc/go/cast v1.5.5 h1:DMbfK3uPhPjRaXutj3StIZIkfjFIATSXfuAOeNOd4Fw=
-apigo.cc/go/cast v1.5.5/go.mod h1:GMjjrYn93tWat1U409G7h1jR3ejfLLI7r0efBo9Sbd4=
-apigo.cc/go/jsmod v1.5.3 h1:S3W317bH0QV2NMeRO1E0v6ySIBOfMWYv/NuQJbvqKWU=
-apigo.cc/go/jsmod v1.5.3/go.mod h1:bmyeZtOAP/j5am+YRnaiM89smysK24K7ebk0koFtsSw=
+apigo.cc/go/cast v1.5.6 h1:KCN3fWS5lw81CUD3uuqR+rXHr3vupGWPpSf+zm4Fm7Y=
+apigo.cc/go/cast v1.5.6/go.mod h1:ivFIhE2MdJbmLYO04xe7gmNlccJ8Su6B0hTwz0ZA6zQ=
+apigo.cc/go/jsmod v1.5.4 h1:r76LbQww674avYt8vITmrhNwM2WSnlriCLECNjXsR1o=
+apigo.cc/go/jsmod v1.5.4/go.mod h1:bmyeZtOAP/j5am+YRnaiM89smysK24K7ebk0koFtsSw=
+gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=
+gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
+gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
