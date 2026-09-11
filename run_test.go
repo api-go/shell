@@ -156,3 +156,26 @@ func TestProcessKillWaitsAndIsConcurrentSafe(t *testing.T) {
 		t.Fatal("process should be reaped before Kill returns")
 	}
 }
+
+func TestProcessKillWaitsForEntireProcessGroup(t *testing.T) {
+	ready := make(chan struct{}, 1)
+	proc, err := shell.Start("sh", []string{"-c", "trap 'exit 0' TERM; sh -c 'trap \"\" TERM; echo ready; exec sleep 30' & wait"}, &shell.Options{OnStdout: func([]byte) {
+		select {
+		case ready <- struct{}{}:
+		default:
+		}
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-ready
+
+	grace := 100 * time.Millisecond
+	started := time.Now()
+	if err = proc.KillWithTimeout(grace); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed < grace {
+		t.Fatalf("KillWithTimeout returned after %v, before the process-group grace period %v", elapsed, grace)
+	}
+}

@@ -237,6 +237,7 @@ func setupSignalHandling(cmd *exec.Cmd) {
 // It provides methods to manage the subprocess lifecycle and I/O.
 type Process struct {
 	cmd       *exec.Cmd
+	pgid      int
 	stdin     io.WriteCloser
 	stdoutBuf bytes.Buffer
 	stderrBuf bytes.Buffer
@@ -291,6 +292,7 @@ func Start(name string, args []string, opts *Options) (*Process, error) {
 
 	p := &Process{
 		cmd:   cmd,
+		pgid:  cmd.Process.Pid,
 		stdin: stdinW,
 		done:  make(chan struct{}),
 	}
@@ -357,13 +359,16 @@ func Start(name string, args []string, opts *Options) (*Process, error) {
 // Kill terminates the process group and waits until the child is reaped.
 // It allows up to two seconds for graceful shutdown before sending SIGKILL.
 func (p *Process) Kill() error {
+	return p.KillWithTimeout(2 * time.Second)
+}
+
+// KillWithTimeout terminates the process group and waits for every process in
+// that group to exit before returning.
+func (p *Process) KillWithTimeout(grace time.Duration) error {
 	p.killMu.Lock()
 	defer p.killMu.Unlock()
 
 	if p.cmd.Process == nil {
-		return nil
-	}
-	if p.waitDone(0) {
 		return nil
 	}
 	if runtime.GOOS == "windows" {
@@ -373,24 +378,40 @@ func (p *Process) Kill() error {
 		p.waitDone(-1)
 		return nil
 	}
-	pgid, err := syscall.Getpgid(p.cmd.Process.Pid)
-	if err != nil {
-		if errors.Is(err, syscall.ESRCH) || p.waitDone(0) {
-			return nil
-		}
-		return err
-	}
+	pgid := p.pgid
+	var err error
 	if err = syscall.Kill(-pgid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
 		return err
 	}
-	if p.waitDone(2 * time.Second) {
+	if p.waitProcessGroup(pgid, grace) {
 		return nil
 	}
 	if err = syscall.Kill(-pgid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
 		return err
 	}
 	p.waitDone(-1)
+	if !p.waitProcessGroup(pgid, 2*time.Second) {
+		return fmt.Errorf("process group %d did not exit after SIGKILL", pgid)
+	}
 	return nil
+}
+
+func (p *Process) waitProcessGroup(pgid int, timeout time.Duration) bool {
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		groupGone := errors.Is(syscall.Kill(-pgid, 0), syscall.ESRCH)
+		if groupGone && p.waitDone(0) {
+			return true
+		}
+		select {
+		case <-ticker.C:
+		case <-deadline.C:
+			return false
+		}
+	}
 }
 
 func (p *Process) waitDone(timeout time.Duration) bool {
