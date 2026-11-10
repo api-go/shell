@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"apigo.cc/go/shell"
+	"github.com/api-go/shell"
 )
 
 func TestRunTimeout(t *testing.T) {

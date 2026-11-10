@@ -1,3 +1,7 @@
+## [v1.5.9] - 2026-11-10
+
+- 迁移至 github.com/api-go/shell，同步内部模块路径与依赖。
+
 # CHANGELOG - shell
 
 ## v1.5.8 (2026-09-12)

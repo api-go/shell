@@ -1,6 +1,6 @@
 package shell
 
-import "apigo.cc/go/jsmod"
+import "github.com/api-go/jsmod"
 
 func init() {
 	jsmod.Register("shell", map[string]any{

@@ -1,7 +1,7 @@
 package shell
 
 import (
-	"apigo.cc/go/cast"
+	"github.com/api-go/cast"
 	"bytes"
 	"context"
 	"errors"

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"apigo.cc/go/shell"
+	"github.com/api-go/shell"
 )
 
 func TestStripANSI(t *testing.T) {
